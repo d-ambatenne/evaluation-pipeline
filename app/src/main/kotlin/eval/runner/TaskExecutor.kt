@@ -5,6 +5,7 @@ import eval.context.PromptAssembler
 import eval.model.*
 import eval.provider.GeneratedCode
 import eval.provider.ModelProvider
+import eval.scoring.Scorer
 import java.io.File
 import java.time.Instant
 
@@ -113,8 +114,8 @@ class TaskExecutor(
         }
 
         val totalDuration = System.currentTimeMillis() - startTime
-        val metrics = computeMetrics(attempts, totalDuration)
-        val finalOutcome = determineFinalOutcome(attempts)
+        val metrics = Scorer.computeMetrics(attempts, totalDuration)
+        val finalOutcome = Scorer.determineFinalOutcome(attempts)
 
         return EvalResult(
             taskId = task.id,
@@ -143,24 +144,4 @@ class TaskExecutor(
         }
     }
 
-    companion object {
-        fun computeMetrics(attempts: List<Attempt>, totalDurationMs: Long): EvalMetrics {
-            val firstAttempt = attempts.firstOrNull()
-            val successIndex = attempts.indexOfFirst { it.testSuccess }
-
-            return EvalMetrics(
-                firstTryCompile = firstAttempt?.compileSuccess ?: false,
-                firstTryTestPass = firstAttempt?.let { it.compileSuccess && it.testSuccess } ?: false,
-                attemptsToSuccess = if (successIndex >= 0) successIndex + 1 else null,
-                totalDurationMs = totalDurationMs,
-                recoveredFromError = successIndex > 0,
-            )
-        }
-
-        fun determineFinalOutcome(attempts: List<Attempt>): Outcome = when {
-            attempts.any { it.testSuccess } -> Outcome.SUCCESS
-            attempts.any { it.compileSuccess } -> Outcome.PARTIAL
-            else -> Outcome.FAILURE
-        }
-    }
 }

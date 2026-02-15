@@ -1,15 +1,14 @@
-package eval.runner
+package eval.scoring
 
 import eval.model.Outcome
 import eval.model.Attempt
-import eval.model.EvalMetrics
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.assertFalse
 
-class TaskExecutorTest {
+class ScorerTest {
 
     @Test
     fun `computeMetrics first try success`() {
@@ -22,7 +21,7 @@ class TaskExecutorTest {
                 durationMs = 5000,
             )
         )
-        val metrics = TaskExecutor.computeMetrics(attempts, 5000)
+        val metrics = Scorer.computeMetrics(attempts, 5000)
 
         assertTrue(metrics.firstTryCompile)
         assertTrue(metrics.firstTryTestPass)
@@ -50,7 +49,7 @@ class TaskExecutorTest {
                 durationMs = 4000,
             ),
         )
-        val metrics = TaskExecutor.computeMetrics(attempts, 7000)
+        val metrics = Scorer.computeMetrics(attempts, 7000)
 
         assertFalse(metrics.firstTryCompile)
         assertFalse(metrics.firstTryTestPass)
@@ -77,7 +76,7 @@ class TaskExecutorTest {
                 durationMs = 2000,
             ),
         )
-        val metrics = TaskExecutor.computeMetrics(attempts, 4000)
+        val metrics = Scorer.computeMetrics(attempts, 4000)
 
         assertFalse(metrics.firstTryCompile)
         assertFalse(metrics.firstTryTestPass)
@@ -96,7 +95,7 @@ class TaskExecutorTest {
                 durationMs = 5000,
             ),
         )
-        val metrics = TaskExecutor.computeMetrics(attempts, 5000)
+        val metrics = Scorer.computeMetrics(attempts, 5000)
 
         assertTrue(metrics.firstTryCompile)
         assertFalse(metrics.firstTryTestPass)
@@ -105,7 +104,7 @@ class TaskExecutorTest {
 
     @Test
     fun `computeMetrics empty attempts`() {
-        val metrics = TaskExecutor.computeMetrics(emptyList(), 0)
+        val metrics = Scorer.computeMetrics(emptyList(), 0)
 
         assertFalse(metrics.firstTryCompile)
         assertFalse(metrics.firstTryTestPass)
@@ -119,7 +118,7 @@ class TaskExecutorTest {
             Attempt(1, emptyMap(), false, emptyList(), false, null, 1000),
             Attempt(2, emptyMap(), true, emptyList(), true, null, 1000),
         )
-        assertEquals(Outcome.SUCCESS, TaskExecutor.determineFinalOutcome(attempts))
+        assertEquals(Outcome.SUCCESS, Scorer.determineFinalOutcome(attempts))
     }
 
     @Test
@@ -128,7 +127,7 @@ class TaskExecutorTest {
             Attempt(1, emptyMap(), true, emptyList(), false, null, 1000),
             Attempt(2, emptyMap(), true, emptyList(), false, null, 1000),
         )
-        assertEquals(Outcome.PARTIAL, TaskExecutor.determineFinalOutcome(attempts))
+        assertEquals(Outcome.PARTIAL, Scorer.determineFinalOutcome(attempts))
     }
 
     @Test
@@ -137,6 +136,6 @@ class TaskExecutorTest {
             Attempt(1, emptyMap(), false, listOf("error"), false, null, 1000),
             Attempt(2, emptyMap(), false, listOf("error"), false, null, 1000),
         )
-        assertEquals(Outcome.FAILURE, TaskExecutor.determineFinalOutcome(attempts))
+        assertEquals(Outcome.FAILURE, Scorer.determineFinalOutcome(attempts))
     }
 }
