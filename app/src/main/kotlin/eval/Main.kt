@@ -6,8 +6,6 @@ import eval.provider.ModelProvider
 import eval.provider.OpenAIProvider
 import eval.runner.EvalRunner
 import kotlinx.coroutines.runBlocking
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import java.io.File
 
 fun main(args: Array<String>) {
@@ -19,6 +17,8 @@ fun main(args: Array<String>) {
         System.exit(1)
     }
 
+    val outputDir = File(config.output)
+
     val runner = EvalRunner(
         repoPath = File(config.repo),
         providers = providers,
@@ -26,17 +26,12 @@ fun main(args: Array<String>) {
         maxAttemptsOverride = config.maxAttempts,
         parallel = config.parallel,
         dryRun = config.dryRun,
+        outputDir = outputDir,
     )
 
-    val result = runBlocking { runner.run() }
+    runBlocking { runner.run() }
 
-    val outputDir = File(config.output)
-    outputDir.mkdirs()
-
-    val json = Json { prettyPrint = true }
-    val resultFile = File(outputDir, "results.json")
-    resultFile.writeText(json.encodeToString(result))
-    println("Results written to ${resultFile.absolutePath}")
+    println("Results written to ${outputDir.absolutePath}")
 }
 
 private data class CliConfig(

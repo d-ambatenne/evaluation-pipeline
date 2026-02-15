@@ -3,6 +3,10 @@ package eval.runner
 import eval.context.ContextBuilder
 import eval.model.*
 import eval.provider.ModelProvider
+import eval.reporting.ComparisonReport
+import eval.reporting.JsonReporter
+import eval.reporting.MarkdownReporter
+import eval.scoring.FailureCategorizer
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
@@ -17,6 +21,7 @@ class EvalRunner(
     private val maxAttemptsOverride: Int? = null,
     private val parallel: Boolean = false,
     private val dryRun: Boolean = false,
+    private val outputDir: File? = null,
 ) {
     private val logger = LoggerFactory.getLogger(EvalRunner::class.java)
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
@@ -51,13 +56,22 @@ class EvalRunner(
 
         validate(manifest, tasks)
 
-        val results = if (parallel) {
+        val rawResults = if (parallel) {
             runParallel(manifest, tasks)
         } else {
             runSequential(manifest, tasks)
         }
 
-        return EvalRun(
+        // Apply failure categorization to non-success results
+        val results = rawResults.map { result ->
+            if (result.finalOutcome != Outcome.SUCCESS && result.failureCategory == null) {
+                result.copy(failureCategory = FailureCategorizer.categorize(result))
+            } else {
+                result
+            }
+        }
+
+        val evalRun = EvalRun(
             id = UUID.randomUUID().toString(),
             timestamp = Instant.now().toString(),
             projectName = manifest.projectName,
@@ -65,6 +79,18 @@ class EvalRunner(
             models = providers.map { it.name },
             results = results,
         )
+
+        // Write reports if output directory is configured
+        if (outputDir != null) {
+            logger.info("Writing reports to ${outputDir.absolutePath}")
+            JsonReporter.write(evalRun, outputDir)
+            MarkdownReporter.write(evalRun, outputDir)
+            if (providers.size >= 2) {
+                ComparisonReport.write(evalRun, outputDir)
+            }
+        }
+
+        return evalRun
     }
 
     private fun validate(manifest: TaskManifest, tasks: List<TaskDefinition>) {
