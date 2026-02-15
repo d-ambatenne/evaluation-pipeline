@@ -12,8 +12,10 @@ import kotlinx.serialization.json.Json
 
 class ClaudeProvider(
     private val model: String = "claude-sonnet-4-20250514",
-    private val apiKey: String = System.getenv("ANTHROPIC_API_KEY")
-        ?: error("ANTHROPIC_API_KEY environment variable not set"),
+    private val baseUrl: String = System.getenv("ANTHROPIC_BASE_URL") ?: "https://api.anthropic.com",
+    private val authToken: String = System.getenv("ANTHROPIC_AUTH_TOKEN")
+        ?: System.getenv("ANTHROPIC_API_KEY")
+        ?: error("ANTHROPIC_AUTH_TOKEN or ANTHROPIC_API_KEY environment variable not set"),
     private val client: HttpClient = defaultClient(),
 ) : ModelProvider {
 
@@ -24,8 +26,8 @@ class ClaudeProvider(
         projectContext: ProjectContext,
         previousErrors: List<String>?,
     ): GeneratedCode {
-        val response = client.post("https://api.anthropic.com/v1/messages") {
-            header("x-api-key", apiKey)
+        val response = client.post("${baseUrl.trimEnd('/')}/v1/messages") {
+            header("x-api-key", authToken)
             header("anthropic-version", "2023-06-01")
             contentType(ContentType.Application.Json)
             setBody(

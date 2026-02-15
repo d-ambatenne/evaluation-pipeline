@@ -12,8 +12,10 @@ import kotlinx.serialization.json.Json
 
 class OpenAIProvider(
     private val model: String = "gpt-4o",
-    private val apiKey: String = System.getenv("OPENAI_API_KEY")
-        ?: error("OPENAI_API_KEY environment variable not set"),
+    private val baseUrl: String = System.getenv("OPENAI_BASE_URL") ?: "https://api.openai.com",
+    private val authToken: String = System.getenv("OPENAI_AUTH_TOKEN")
+        ?: System.getenv("OPENAI_API_KEY")
+        ?: error("OPENAI_AUTH_TOKEN or OPENAI_API_KEY environment variable not set"),
     private val client: HttpClient = defaultClient(),
 ) : ModelProvider {
 
@@ -24,8 +26,8 @@ class OpenAIProvider(
         projectContext: ProjectContext,
         previousErrors: List<String>?,
     ): GeneratedCode {
-        val response = client.post("https://api.openai.com/v1/chat/completions") {
-            header("Authorization", "Bearer $apiKey")
+        val response = client.post("${baseUrl.trimEnd('/')}/v1/chat/completions") {
+            header("Authorization", "Bearer $authToken")
             contentType(ContentType.Application.Json)
             setBody(
                 OpenAIRequest(

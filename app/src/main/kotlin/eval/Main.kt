@@ -100,11 +100,11 @@ private fun parseArgs(args: Array<String>): CliConfig {
 private fun resolveProviders(modelFilter: Set<String>?): List<ModelProvider> {
     val available = mutableListOf<ModelProvider>()
 
-    // Only instantiate providers whose API keys are set
-    if (System.getenv("ANTHROPIC_API_KEY") != null) {
+    // Only instantiate providers whose auth tokens are set
+    if (System.getenv("ANTHROPIC_AUTH_TOKEN") != null || System.getenv("ANTHROPIC_API_KEY") != null) {
         available.add(ClaudeProvider())
     }
-    if (System.getenv("OPENAI_API_KEY") != null) {
+    if (System.getenv("OPENAI_AUTH_TOKEN") != null || System.getenv("OPENAI_API_KEY") != null) {
         available.add(OpenAIProvider())
     }
     if (System.getenv("GEMINI_API_KEY") != null) {
