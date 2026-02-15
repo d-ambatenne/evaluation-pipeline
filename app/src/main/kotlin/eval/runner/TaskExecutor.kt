@@ -74,14 +74,22 @@ class TaskExecutor(
             // Test (only if compile succeeded)
             var testSuccess = false
             var testResults: TestResults? = null
+            var testGradleOutput = ""
             if (compileResult.success) {
                 val testResult = gradleExecutor.runTests(task.verification.testTask)
                 testSuccess = testResult.success
-                // Parse test XML — derive the test results dir from the task name
+                testGradleOutput = testResult.stdout + "\n" + testResult.stderr
+
+                // Try JUnit XML first, fall back to parsing Gradle console output
                 val testTaskName = task.verification.testTask.substringAfterLast(":")
                 val testResultsDir = findTestResultsDir(sandbox.workDir, testTaskName)
-                if (testResultsDir != null) {
-                    testResults = GradleExecutor.parseTestResultsFromXml(testResultsDir)
+                testResults = if (testResultsDir != null) {
+                    GradleExecutor.parseTestResultsFromXml(testResultsDir)
+                } else {
+                    null
+                }
+                if (testResults == null) {
+                    testResults = GradleExecutor.parseTestResultsFromOutput(testGradleOutput)
                 }
             }
 
@@ -107,9 +115,9 @@ class TaskExecutor(
                     listOf(compileResult.stdout.takeLast(2000))
                 }
             } else {
-                // Compiled but tests failed — still retry if attempts remain
+                // Compiled but tests failed — pass detailed feedback
                 previousCode = generated.files
-                previousErrors = buildTestErrorFeedback(testResults)
+                previousErrors = buildTestErrorFeedback(testResults, testGradleOutput)
             }
         }
 
@@ -135,13 +143,21 @@ class TaskExecutor(
         return candidates.firstOrNull()
     }
 
-    private fun buildTestErrorFeedback(testResults: TestResults?): List<String> {
-        if (testResults == null) return listOf("Tests failed but no detailed results available.")
-        return testResults.failures.map { failure ->
-            "${failure.className}.${failure.testName}: ${failure.message ?: "FAILED"}"
-        }.ifEmpty {
-            listOf("${testResults.failed} test(s) failed.")
+    private fun buildTestErrorFeedback(testResults: TestResults?, gradleOutput: String): List<String> {
+        // First try structured test results
+        if (testResults != null && testResults.failures.isNotEmpty()) {
+            return testResults.failures.map { failure ->
+                "${failure.className}.${failure.testName}: ${failure.message ?: "FAILED"}"
+            }
         }
+
+        // Fall back to the raw Gradle output (trimmed to last 3000 chars)
+        val trimmedOutput = gradleOutput.takeLast(3000)
+        if (trimmedOutput.isNotBlank()) {
+            return listOf("Test output:\n$trimmedOutput")
+        }
+
+        return listOf("Tests failed but no detailed output was captured.")
     }
 
 }

@@ -41,24 +41,39 @@ class GradleExecutor(
             .redirectErrorStream(false)
             .start()
 
+        // Read stdout and stderr in separate threads to avoid deadlock
+        // when pipe buffers fill up before the process exits.
+        val stdoutBuilder = StringBuilder()
+        val stderrBuilder = StringBuilder()
+        val stdoutThread = Thread {
+            stdoutBuilder.append(process.inputStream.bufferedReader().readText())
+        }
+        val stderrThread = Thread {
+            stderrBuilder.append(process.errorStream.bufferedReader().readText())
+        }
+        stdoutThread.start()
+        stderrThread.start()
+
         val finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS)
         if (!finished) {
             process.destroyForcibly()
+            stdoutThread.join(5000)
+            stderrThread.join(5000)
             return GradleResult(
                 exitCode = -1,
-                stdout = "",
+                stdout = stdoutBuilder.toString(),
                 stderr = "Gradle task timed out after ${timeoutSeconds}s",
                 success = false,
             )
         }
 
-        val stdout = process.inputStream.bufferedReader().readText()
-        val stderr = process.errorStream.bufferedReader().readText()
+        stdoutThread.join(10000)
+        stderrThread.join(10000)
 
         return GradleResult(
             exitCode = process.exitValue(),
-            stdout = stdout,
-            stderr = stderr,
+            stdout = stdoutBuilder.toString(),
+            stderr = stderrBuilder.toString(),
             success = process.exitValue() == 0,
         )
     }
@@ -82,6 +97,77 @@ class GradleExecutor(
             return parseCompilerErrors(output).map { error ->
                 "${error.file}:${error.line}:${error.column} ${error.message}"
             }
+        }
+
+        private val TEST_RESULT_LINE = Regex("""(\S+)\s+>\s+(.+?)\(\)\s+(PASSED|FAILED|SKIPPED)""")
+        private val TEST_FAILURE_DETAIL = Regex("""(?:^\s+\S+.*(?:Error|Exception|assert).*$)""", RegexOption.MULTILINE)
+
+        /**
+         * Parse test results from Gradle's console output as a fallback
+         * when JUnit XML reports are not available.
+         */
+        fun parseTestResultsFromOutput(output: String): TestResults? {
+            val matches = TEST_RESULT_LINE.findAll(output).toList()
+            if (matches.isEmpty()) return null
+
+            var passed = 0
+            var failed = 0
+            var skipped = 0
+            val failures = mutableListOf<TestFailure>()
+
+            for (match in matches) {
+                val className = match.groupValues[1]
+                val testName = match.groupValues[2].trim()
+                val status = match.groupValues[3]
+
+                when (status) {
+                    "PASSED" -> passed++
+                    "FAILED" -> {
+                        failed++
+                        // Try to extract failure message from lines following the FAILED line
+                        val afterMatch = output.substring(match.range.last + 1)
+                        val failureMessage = extractFailureMessage(afterMatch)
+                        failures.add(
+                            TestFailure(
+                                testName = testName,
+                                className = className,
+                                message = failureMessage,
+                            )
+                        )
+                    }
+                    "SKIPPED" -> skipped++
+                }
+            }
+
+            return TestResults(
+                totalTests = passed + failed + skipped,
+                passed = passed,
+                failed = failed,
+                skipped = skipped,
+                failures = failures,
+            )
+        }
+
+        /**
+         * Extract the failure message from Gradle output following a FAILED test line.
+         * Looks for indented lines containing exception/assertion info.
+         */
+        private fun extractFailureMessage(textAfterFailure: String): String? {
+            val lines = textAfterFailure.lines()
+            val messageLines = mutableListOf<String>()
+            for (line in lines) {
+                // Stop at the next test result or blank line after collecting some
+                if (line.isBlank() && messageLines.isNotEmpty()) break
+                if (TEST_RESULT_LINE.containsMatchIn(line)) break
+                if (line.startsWith("> Task")) break
+                val trimmed = line.trim()
+                if (trimmed.isNotEmpty() && !trimmed.startsWith("at ")) {
+                    messageLines.add(trimmed)
+                }
+                // Limit to avoid capturing excessive output
+                if (messageLines.size >= 5) break
+            }
+            return messageLines.joinToString("\n").ifEmpty { null }
         }
 
         fun parseTestResultsFromXml(testResultsDir: File): TestResults? {

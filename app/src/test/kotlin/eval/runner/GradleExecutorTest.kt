@@ -157,6 +157,77 @@ java.lang.AssertionError: expected 1 but was 2
         }
     }
 
+    @Test
+    fun `parseTestResultsFromOutput with passed and failed tests`() {
+        val output = """
+> Task :backend:test
+
+ApplicationTest > get all data() PASSED
+
+ApplicationTest > post data instance() FAILED
+    org.opentest4j.AssertionFailedError: expected:<201 Created> but was:<404 Not Found>
+
+ApplicationTest > put data instance() PASSED
+
+ApplicationTest > delete data instance() SKIPPED
+
+4 tests completed, 1 failed, 1 skipped
+        """.trimIndent()
+
+        val results = GradleExecutor.parseTestResultsFromOutput(output)
+        assertNotNull(results)
+        assertEquals(4, results.totalTests)
+        assertEquals(2, results.passed)
+        assertEquals(1, results.failed)
+        assertEquals(1, results.skipped)
+        assertEquals(1, results.failures.size)
+        assertEquals("post data instance", results.failures[0].testName)
+        assertEquals("ApplicationTest", results.failures[0].className)
+    }
+
+    @Test
+    fun `parseTestResultsFromOutput with all passing tests`() {
+        val output = """
+> Task :backend:test
+
+ApplicationTest > get all data() PASSED
+
+ApplicationTest > post data instance() PASSED
+
+2 tests completed, 0 failed
+        """.trimIndent()
+
+        val results = GradleExecutor.parseTestResultsFromOutput(output)
+        assertNotNull(results)
+        assertEquals(2, results.totalTests)
+        assertEquals(2, results.passed)
+        assertEquals(0, results.failed)
+        assertTrue(results.failures.isEmpty())
+    }
+
+    @Test
+    fun `parseTestResultsFromOutput returns null for output with no test lines`() {
+        val output = "BUILD SUCCESSFUL in 5s"
+        val results = GradleExecutor.parseTestResultsFromOutput(output)
+        assertNull(results)
+    }
+
+    @Test
+    fun `parseTestResultsFromOutput captures failure message`() {
+        val output = """
+ApplicationTest > post data instance() FAILED
+    org.opentest4j.AssertionFailedError: expected 201 but was 404
+
+ApplicationTest > get all data() PASSED
+        """.trimIndent()
+
+        val results = GradleExecutor.parseTestResultsFromOutput(output)
+        assertNotNull(results)
+        assertEquals(1, results.failures.size)
+        assertNotNull(results.failures[0].message)
+        assertTrue(results.failures[0].message!!.contains("expected 201 but was 404"))
+    }
+
     private fun createTempDir(prefix: String): File {
         val dir = File(System.getProperty("java.io.tmpdir"), "$prefix-${System.currentTimeMillis()}")
         dir.mkdirs()
