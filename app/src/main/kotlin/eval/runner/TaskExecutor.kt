@@ -6,6 +6,7 @@ import eval.model.*
 import eval.provider.GeneratedCode
 import eval.provider.ModelProvider
 import eval.scoring.Scorer
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.time.Instant
 
@@ -26,6 +27,7 @@ class TaskExecutor(
     private val gradleExecutor: GradleExecutor,
     private val contextBuilder: ContextBuilder,
 ) {
+    private val logger = LoggerFactory.getLogger(TaskExecutor::class.java)
     suspend fun execute(
         task: TaskDefinition,
         provider: ModelProvider,
@@ -108,6 +110,12 @@ class TaskExecutor(
             // If tests passed, we're done
             if (testSuccess) break
 
+            // For PARTIAL-expected tasks, compiling is enough — don't retry
+            if (task.expectedOutcome == Outcome.PARTIAL && compileResult.success) {
+                logger.info("Task expects PARTIAL outcome and code compiles — stopping retries")
+                break
+            }
+
             // If compile failed, prepare for retry
             if (!compileResult.success) {
                 previousCode = generated.files
@@ -123,7 +131,10 @@ class TaskExecutor(
 
         val totalDuration = System.currentTimeMillis() - startTime
         val metrics = Scorer.computeMetrics(attempts, totalDuration)
-        val finalOutcome = Scorer.determineFinalOutcome(attempts)
+        val finalOutcome = Scorer.determineFinalOutcome(attempts, task.expectedOutcome)
+
+        // Compute LOC delta against reference solution on the task branch
+        val codeDelta = computeCodeDelta(task.branch, attempts.lastOrNull()?.generatedCode)
 
         return EvalResult(
             taskId = task.id,
@@ -132,6 +143,7 @@ class TaskExecutor(
             attempts = attempts,
             finalOutcome = finalOutcome,
             metrics = metrics,
+            codeDelta = codeDelta,
         )
     }
 
@@ -142,6 +154,31 @@ class TaskExecutor(
             .toList()
         return candidates.firstOrNull()
     }
+
+    private fun computeCodeDelta(branch: String, generatedCode: Map<String, String>?): CodeDelta? {
+        if (generatedCode.isNullOrEmpty()) return null
+
+        val generatedLoc = generatedCode.values.sumOf { countNonBlankLines(it) }
+
+        val referenceLoc = generatedCode.keys.sumOf { path ->
+            val refContent = sandbox.readBranchFile(branch, path)
+            if (refContent != null) countNonBlankLines(refContent) else 0
+        }
+
+        if (referenceLoc == 0) {
+            logger.debug("No reference files found on branch '$branch' for LOC delta")
+            return null
+        }
+
+        return CodeDelta(
+            generatedLoc = generatedLoc,
+            referenceLoc = referenceLoc,
+            delta = generatedLoc - referenceLoc,
+        )
+    }
+
+    private fun countNonBlankLines(content: String): Int =
+        content.lines().count { it.isNotBlank() }
 
     private fun buildTestErrorFeedback(testResults: TestResults?, gradleOutput: String): List<String> {
         // First try structured test results

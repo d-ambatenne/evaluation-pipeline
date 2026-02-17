@@ -3,6 +3,7 @@ package eval.reporting
 import eval.model.*
 import kotlin.test.Test
 import kotlin.test.assertContains
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class MarkdownReporterTest {
@@ -126,5 +127,43 @@ class MarkdownReporterTest {
         val emptyRun = sampleRun.copy(results = emptyList(), models = emptyList())
         val md = MarkdownReporter.generate(emptyRun)
         assertTrue(md.contains("# Eval Results: ktor-workshop-2025"))
+    }
+
+    @Test
+    fun `generates code delta section when results have codeDelta`() {
+        val runWithDelta = sampleRun.copy(
+            results = sampleRun.results.map { result ->
+                if (result.taskId == "first-tests" && result.model == "claude-sonnet") {
+                    result.copy(codeDelta = CodeDelta(generatedLoc = 45, referenceLoc = 40, delta = 5))
+                } else {
+                    result
+                }
+            },
+        )
+        val md = MarkdownReporter.generate(runWithDelta)
+        assertContains(md, "## Code Delta (LOC)")
+        assertContains(md, "45/40 (+5)")
+        assertContains(md, "Format: generated/reference (delta)")
+    }
+
+    @Test
+    fun `no code delta section when no results have codeDelta`() {
+        val md = MarkdownReporter.generate(sampleRun)
+        assertFalse(md.contains("## Code Delta (LOC)"))
+    }
+
+    @Test
+    fun `code delta shown in per-task details`() {
+        val runWithDelta = sampleRun.copy(
+            results = sampleRun.results.map { result ->
+                if (result.taskId == "first-tests" && result.model == "claude-sonnet") {
+                    result.copy(codeDelta = CodeDelta(generatedLoc = 30, referenceLoc = 50, delta = -20))
+                } else {
+                    result
+                }
+            },
+        )
+        val md = MarkdownReporter.generate(runWithDelta)
+        assertContains(md, "LOC: 30 generated / 50 reference (-20)")
     }
 }
