@@ -138,4 +138,50 @@ class ScorerTest {
         )
         assertEquals(Outcome.FAILURE, Scorer.determineFinalOutcome(attempts))
     }
+
+    // --- Tests for outcome-aware determineFinalOutcome ---
+
+    @Test
+    fun `determineFinalOutcome with PARTIAL expected - PARTIAL becomes SUCCESS`() {
+        val attempts = listOf(
+            Attempt(1, emptyMap(), true, emptyList(), false, null, 1000),
+        )
+        assertEquals(
+            Outcome.SUCCESS,
+            Scorer.determineFinalOutcome(attempts, Outcome.PARTIAL),
+        )
+    }
+
+    @Test
+    fun `determineFinalOutcome with PARTIAL expected - FAILURE stays FAILURE`() {
+        val attempts = listOf(
+            Attempt(1, emptyMap(), false, listOf("error"), false, null, 1000),
+        )
+        assertEquals(
+            Outcome.FAILURE,
+            Scorer.determineFinalOutcome(attempts, Outcome.FAILURE),
+        )
+    }
+
+    @Test
+    fun `determineFinalOutcome with PARTIAL expected - SUCCESS stays SUCCESS`() {
+        val attempts = listOf(
+            Attempt(1, emptyMap(), true, emptyList(), true, null, 1000),
+        )
+        assertEquals(
+            Outcome.SUCCESS,
+            Scorer.determineFinalOutcome(attempts, Outcome.PARTIAL),
+        )
+    }
+
+    @Test
+    fun `determineFinalOutcome with SUCCESS expected - PARTIAL stays PARTIAL`() {
+        val attempts = listOf(
+            Attempt(1, emptyMap(), true, emptyList(), false, null, 1000),
+        )
+        assertEquals(
+            Outcome.PARTIAL,
+            Scorer.determineFinalOutcome(attempts, Outcome.SUCCESS),
+        )
+    }
 }

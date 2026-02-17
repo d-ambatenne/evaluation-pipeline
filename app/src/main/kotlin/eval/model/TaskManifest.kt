@@ -20,6 +20,7 @@ data class TaskDefinition(
     val verification: Verification,
     val maxAttempts: Int = 3,
     val contextFiles: List<String> = emptyList(),
+    val expectedOutcome: Outcome = Outcome.SUCCESS,
 )
 
 @Serializable

@@ -74,6 +74,18 @@ class ProjectSandbox private constructor(
     }
 
     /**
+     * Read a file from a specific branch without checking it out.
+     * Returns null if the file doesn't exist on that branch.
+     */
+    fun readBranchFile(branch: String, path: String): String? {
+        return try {
+            git(workDir, "show", "$branch:$path")
+        } catch (_: RuntimeException) {
+            null
+        }
+    }
+
+    /**
      * Reset the working copy to the main branch clean state.
      */
     fun resetToMain() {

@@ -111,6 +111,35 @@ object MarkdownReporter {
             appendLine()
         }
 
+        // Code delta table (if any results have it)
+        val hasCodeDelta = run.results.any { it.codeDelta != null }
+        if (hasCodeDelta) {
+            appendLine("## Code Delta (LOC)")
+            appendLine()
+            append("| Task |")
+            models.forEach { append(" $it |") }
+            appendLine()
+            append("|------|")
+            models.forEach { append("--------|") }
+            appendLine()
+
+            for (taskId in taskIds) {
+                append("| $taskId |")
+                for (model in models) {
+                    val result = resultMap["$taskId::$model"]
+                    val cell = result?.codeDelta?.let { d ->
+                        val sign = if (d.delta >= 0) "+" else ""
+                        " ${d.generatedLoc}/${d.referenceLoc} (${sign}${d.delta}) "
+                    } ?: " - "
+                    append("$cell|")
+                }
+                appendLine()
+            }
+            appendLine()
+            appendLine("Format: generated/reference (delta)")
+            appendLine()
+        }
+
         // Per-task details
         appendLine("## Per-Task Details")
         appendLine()
@@ -120,6 +149,11 @@ object MarkdownReporter {
             for (model in models) {
                 val result = resultMap["$taskId::$model"] ?: continue
                 appendLine("**$model**: ${result.finalOutcome} in ${result.attempts.size} attempt(s), ${result.metrics.totalDurationMs}ms total")
+                if (result.codeDelta != null) {
+                    val d = result.codeDelta
+                    val sign = if (d.delta >= 0) "+" else ""
+                    appendLine("  LOC: ${d.generatedLoc} generated / ${d.referenceLoc} reference (${sign}${d.delta})")
+                }
                 if (result.attempts.any { it.compilerErrors.isNotEmpty() }) {
                     appendLine()
                     appendLine("Compiler errors (last attempt):")

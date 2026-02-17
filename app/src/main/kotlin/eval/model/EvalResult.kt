@@ -14,6 +14,7 @@ data class EvalResult(
     val finalOutcome: Outcome,
     val metrics: EvalMetrics,
     val failureCategory: FailureCategory? = null,
+    val codeDelta: CodeDelta? = null,
 )
 
 @Serializable
@@ -56,4 +57,11 @@ data class TestFailure(
     val className: String,
     val message: String? = null,
     val stackTrace: String? = null,
+)
+
+@Serializable
+data class CodeDelta(
+    val generatedLoc: Int,
+    val referenceLoc: Int,
+    val delta: Int,
 )

@@ -26,6 +26,19 @@ object Scorer {
     }
 
     /**
+     * Determine final outcome considering what the task expected.
+     * If [expectedOutcome] is PARTIAL, a PARTIAL result counts as SUCCESS
+     * (compilation was enough). FAILURE still counts as FAILURE.
+     */
+    fun determineFinalOutcome(attempts: List<Attempt>, expectedOutcome: Outcome): Outcome {
+        val raw = determineFinalOutcome(attempts)
+        return when {
+            expectedOutcome == Outcome.PARTIAL && raw == Outcome.PARTIAL -> Outcome.SUCCESS
+            else -> raw
+        }
+    }
+
+    /**
      * Compute aggregate metrics across multiple EvalResults for a single model.
      */
     data class AggregateMetrics(

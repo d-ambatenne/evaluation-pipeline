@@ -110,6 +110,51 @@ class TaskManifestTest {
     }
 
     @Test
+    fun `expectedOutcome defaults to SUCCESS when omitted`() {
+        val jsonString = """
+        {
+          "projectName": "test",
+          "repository": "https://example.com/repo",
+          "tasks": [
+            {
+              "id": "task1",
+              "branch": "branch01",
+              "title": "A task",
+              "difficulty": "MEDIUM",
+              "verification": { "compileTask": ":compile", "testTask": ":test" }
+            }
+          ]
+        }
+        """.trimIndent()
+
+        val decoded = json.decodeFromString<TaskManifest>(jsonString)
+        assertEquals(Outcome.SUCCESS, decoded.tasks[0].expectedOutcome)
+    }
+
+    @Test
+    fun `expectedOutcome PARTIAL deserializes correctly`() {
+        val jsonString = """
+        {
+          "projectName": "test",
+          "repository": "https://example.com/repo",
+          "tasks": [
+            {
+              "id": "task1",
+              "branch": "branch01",
+              "title": "A task",
+              "difficulty": "EASY",
+              "expectedOutcome": "PARTIAL",
+              "verification": { "compileTask": ":compile", "testTask": ":test" }
+            }
+          ]
+        }
+        """.trimIndent()
+
+        val decoded = json.decodeFromString<TaskManifest>(jsonString)
+        assertEquals(Outcome.PARTIAL, decoded.tasks[0].expectedOutcome)
+    }
+
+    @Test
     fun `all difficulty levels serialize correctly`() {
         for (difficulty in Difficulty.entries) {
             val task = TaskDefinition(
