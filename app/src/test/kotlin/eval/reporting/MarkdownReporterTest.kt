@@ -6,6 +6,9 @@ import kotlin.test.assertContains
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
+private val TOKEN_USAGE_1 = TokenUsage(inputTokens = 1500, outputTokens = 800)
+private val TOKEN_USAGE_2 = TokenUsage(inputTokens = 2000, outputTokens = 1200)
+
 class MarkdownReporterTest {
 
     private val sampleRun = EvalRun(
@@ -165,5 +168,48 @@ class MarkdownReporterTest {
         )
         val md = MarkdownReporter.generate(runWithDelta)
         assertContains(md, "LOC: 30 generated / 50 reference (-20)")
+    }
+
+    @Test
+    fun `generates total tokens row in metrics table`() {
+        val runWithTokens = sampleRun.copy(
+            results = sampleRun.results.map { result ->
+                if (result.taskId == "first-tests" && result.model == "claude-sonnet") {
+                    result.copy(
+                        attempts = listOf(
+                            Attempt(1, mapOf("a.kt" to "code"), true, emptyList(), true, null, 5000, TOKEN_USAGE_1),
+                        ),
+                        metrics = EvalMetrics(true, true, 1, 5000, false, totalInputTokens = 1500, totalOutputTokens = 800),
+                    )
+                } else {
+                    result
+                }
+            },
+        )
+        val md = MarkdownReporter.generate(runWithTokens)
+        assertContains(md, "Total tokens")
+        assertContains(md, "2,300")
+    }
+
+    @Test
+    fun `shows per-attempt token counts in per-task details`() {
+        val runWithTokens = sampleRun.copy(
+            results = sampleRun.results.map { result ->
+                if (result.taskId == "first-tests" && result.model == "gpt-4o") {
+                    result.copy(
+                        attempts = listOf(
+                            Attempt(1, mapOf("a.kt" to "bad"), false, listOf("Unresolved reference"), false, null, 3000, TOKEN_USAGE_1),
+                            Attempt(2, mapOf("a.kt" to "good"), true, emptyList(), true, null, 4000, TOKEN_USAGE_2),
+                        ),
+                        metrics = EvalMetrics(false, false, 2, 7000, true, totalInputTokens = 3500, totalOutputTokens = 2000),
+                    )
+                } else {
+                    result
+                }
+            },
+        )
+        val md = MarkdownReporter.generate(runWithTokens)
+        assertContains(md, "Attempt 1: 1,500 in / 800 out")
+        assertContains(md, "Attempt 2: 2,000 in / 1,200 out")
     }
 }

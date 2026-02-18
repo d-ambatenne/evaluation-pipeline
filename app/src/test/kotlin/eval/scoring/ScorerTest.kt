@@ -2,6 +2,7 @@ package eval.scoring
 
 import eval.model.Outcome
 import eval.model.Attempt
+import eval.model.TokenUsage
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -183,5 +184,75 @@ class ScorerTest {
             Outcome.PARTIAL,
             Scorer.determineFinalOutcome(attempts, Outcome.SUCCESS),
         )
+    }
+
+    // --- Token usage aggregation tests ---
+
+    @Test
+    fun `computeMetrics sums token usage across attempts`() {
+        val attempts = listOf(
+            Attempt(
+                attemptNumber = 1,
+                generatedCode = mapOf("a.kt" to "bad"),
+                compileSuccess = false,
+                testSuccess = false,
+                durationMs = 3000,
+                tokenUsage = TokenUsage(inputTokens = 1000, outputTokens = 500),
+            ),
+            Attempt(
+                attemptNumber = 2,
+                generatedCode = mapOf("a.kt" to "good"),
+                compileSuccess = true,
+                testSuccess = true,
+                durationMs = 4000,
+                tokenUsage = TokenUsage(inputTokens = 1200, outputTokens = 600),
+            ),
+        )
+        val metrics = Scorer.computeMetrics(attempts, 7000)
+
+        assertEquals(2200, metrics.totalInputTokens)
+        assertEquals(1100, metrics.totalOutputTokens)
+    }
+
+    @Test
+    fun `computeMetrics handles null token usage`() {
+        val attempts = listOf(
+            Attempt(
+                attemptNumber = 1,
+                generatedCode = mapOf("a.kt" to "code"),
+                compileSuccess = true,
+                testSuccess = true,
+                durationMs = 5000,
+            ),
+        )
+        val metrics = Scorer.computeMetrics(attempts, 5000)
+
+        assertEquals(0, metrics.totalInputTokens)
+        assertEquals(0, metrics.totalOutputTokens)
+    }
+
+    @Test
+    fun `computeMetrics handles mixed null and present token usage`() {
+        val attempts = listOf(
+            Attempt(
+                attemptNumber = 1,
+                generatedCode = mapOf("a.kt" to "bad"),
+                compileSuccess = false,
+                testSuccess = false,
+                durationMs = 3000,
+            ),
+            Attempt(
+                attemptNumber = 2,
+                generatedCode = mapOf("a.kt" to "good"),
+                compileSuccess = true,
+                testSuccess = true,
+                durationMs = 4000,
+                tokenUsage = TokenUsage(inputTokens = 800, outputTokens = 400),
+            ),
+        )
+        val metrics = Scorer.computeMetrics(attempts, 7000)
+
+        assertEquals(800, metrics.totalInputTokens)
+        assertEquals(400, metrics.totalOutputTokens)
     }
 }

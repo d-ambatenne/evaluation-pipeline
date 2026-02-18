@@ -104,6 +104,7 @@ class TaskExecutor(
                 testSuccess = testSuccess,
                 testResults = testResults,
                 durationMs = attemptDuration,
+                tokenUsage = generated.tokenUsage,
             )
             attempts.add(attempt)
 

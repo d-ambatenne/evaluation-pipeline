@@ -1,5 +1,7 @@
 package eval.provider
 
+import eval.model.TokenUsage
+
 data class ProjectContext(
     val files: Map<String, String>,
     val buildConfig: String,
@@ -10,6 +12,7 @@ data class GeneratedCode(
     val files: Map<String, String>,
     val explanation: String? = null,
     val rawResponse: String,
+    val tokenUsage: TokenUsage? = null,
 )
 
 interface ModelProvider {

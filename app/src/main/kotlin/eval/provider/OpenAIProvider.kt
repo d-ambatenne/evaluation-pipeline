@@ -3,10 +3,13 @@ package eval.provider
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import eval.model.TokenUsage
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -44,10 +47,15 @@ class OpenAIProvider(
         val body = response.body<OpenAIResponse>()
         val rawResponse = body.choices.firstOrNull()?.message?.content ?: ""
 
+        val tokenUsage = body.usage?.let {
+            TokenUsage(inputTokens = it.promptTokens, outputTokens = it.completionTokens)
+        }
+
         val parsed = ResponseParser.parse(rawResponse)
         return GeneratedCode(
             files = parsed.files,
             rawResponse = rawResponse,
+            tokenUsage = tokenUsage,
         )
     }
 
@@ -55,6 +63,10 @@ class OpenAIProvider(
         fun defaultClient() = HttpClient(CIO) {
             install(ContentNegotiation) {
                 json(Json { ignoreUnknownKeys = true })
+            }
+            install(HttpTimeout) {
+                requestTimeoutMillis = 600_000
+                socketTimeoutMillis = 600_000
             }
         }
     }
@@ -76,6 +88,13 @@ private data class OpenAIMessage(
 @Serializable
 private data class OpenAIResponse(
     val choices: List<OpenAIChoice>,
+    val usage: OpenAIUsage? = null,
+)
+
+@Serializable
+private data class OpenAIUsage(
+    @SerialName("prompt_tokens") val promptTokens: Int,
+    @SerialName("completion_tokens") val completionTokens: Int,
 )
 
 @Serializable
