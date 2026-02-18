@@ -3,10 +3,12 @@ package eval.provider
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
+import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import eval.model.TokenUsage
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -48,10 +50,15 @@ class GeminiProvider(
             ?.firstOrNull()?.content?.parts
             ?.joinToString("\n") { it.text } ?: ""
 
+        val tokenUsage = body.usageMetadata?.let {
+            TokenUsage(inputTokens = it.promptTokenCount, outputTokens = it.candidatesTokenCount)
+        }
+
         val parsed = ResponseParser.parse(rawResponse)
         return GeneratedCode(
             files = parsed.files,
             rawResponse = rawResponse,
+            tokenUsage = tokenUsage,
         )
     }
 
@@ -59,6 +66,10 @@ class GeminiProvider(
         fun defaultClient() = HttpClient(CIO) {
             install(ContentNegotiation) {
                 json(Json { ignoreUnknownKeys = true })
+            }
+            install(HttpTimeout) {
+                requestTimeoutMillis = 600_000
+                socketTimeoutMillis = 600_000
             }
         }
     }
@@ -89,6 +100,13 @@ private data class GeminiGenerationConfig(
 @Serializable
 private data class GeminiResponse(
     val candidates: List<GeminiCandidate>? = null,
+    val usageMetadata: GeminiUsageMetadata? = null,
+)
+
+@Serializable
+private data class GeminiUsageMetadata(
+    val promptTokenCount: Int = 0,
+    val candidatesTokenCount: Int = 0,
 )
 
 @Serializable

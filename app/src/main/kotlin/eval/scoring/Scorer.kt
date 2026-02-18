@@ -16,6 +16,8 @@ object Scorer {
             attemptsToSuccess = if (successIndex >= 0) successIndex + 1 else null,
             totalDurationMs = totalDurationMs,
             recoveredFromError = successIndex > 0,
+            totalInputTokens = attempts.sumOf { it.tokenUsage?.inputTokens ?: 0 },
+            totalOutputTokens = attempts.sumOf { it.tokenUsage?.outputTokens ?: 0 },
         )
     }
 
@@ -51,6 +53,8 @@ object Scorer {
         val recoveryRate: Double,
         val avgAttemptsToSuccess: Double?,
         val avgTimeTotalMs: Double,
+        val totalInputTokens: Int = 0,
+        val totalOutputTokens: Int = 0,
     )
 
     fun aggregate(results: List<eval.model.EvalResult>): AggregateMetrics {
@@ -80,6 +84,8 @@ object Scorer {
             recoveryRate = recoveryRate,
             avgAttemptsToSuccess = avgAttempts,
             avgTimeTotalMs = results.map { it.metrics.totalDurationMs.toDouble() }.average(),
+            totalInputTokens = results.sumOf { it.metrics.totalInputTokens },
+            totalOutputTokens = results.sumOf { it.metrics.totalOutputTokens },
         )
     }
 }

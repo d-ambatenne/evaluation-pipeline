@@ -6,6 +6,13 @@ import kotlinx.serialization.Serializable
 typealias Timestamp = String
 
 @Serializable
+data class TokenUsage(
+    val inputTokens: Int,
+    val outputTokens: Int,
+    val totalTokens: Int = inputTokens + outputTokens,
+)
+
+@Serializable
 data class EvalResult(
     val taskId: String,
     val model: String,
@@ -26,6 +33,7 @@ data class Attempt(
     val testSuccess: Boolean,
     val testResults: TestResults? = null,
     val durationMs: Long,
+    val tokenUsage: TokenUsage? = null,
 )
 
 @Serializable
@@ -40,6 +48,8 @@ data class EvalMetrics(
     val attemptsToSuccess: Int? = null,
     val totalDurationMs: Long,
     val recoveredFromError: Boolean,
+    val totalInputTokens: Int = 0,
+    val totalOutputTokens: Int = 0,
 )
 
 @Serializable

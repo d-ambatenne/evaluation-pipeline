@@ -85,6 +85,10 @@ object MarkdownReporter {
         appendMetricRow("Avg time to solution", models, metricsByModel) {
             "${(it.avgTimeTotalMs / 1000).toLong()}s"
         }
+        appendMetricRow("Total tokens", models, metricsByModel) {
+            val total = it.totalInputTokens + it.totalOutputTokens
+            if (total > 0) formatTokenCount(total) else "N/A"
+        }
         appendLine()
 
         // Failure distribution
@@ -148,7 +152,15 @@ object MarkdownReporter {
             appendLine()
             for (model in models) {
                 val result = resultMap["$taskId::$model"] ?: continue
-                appendLine("**$model**: ${result.finalOutcome} in ${result.attempts.size} attempt(s), ${result.metrics.totalDurationMs}ms total")
+                val totalTokens = result.metrics.totalInputTokens + result.metrics.totalOutputTokens
+                val tokenSuffix = if (totalTokens > 0) ", ${formatTokenCount(totalTokens)} tokens" else ""
+                appendLine("**$model**: ${result.finalOutcome} in ${result.attempts.size} attempt(s), ${result.metrics.totalDurationMs}ms total$tokenSuffix")
+                for (attempt in result.attempts) {
+                    val tu = attempt.tokenUsage
+                    if (tu != null) {
+                        appendLine("  Attempt ${attempt.attemptNumber}: ${formatTokenCount(tu.inputTokens)} in / ${formatTokenCount(tu.outputTokens)} out")
+                    }
+                }
                 if (result.codeDelta != null) {
                     val d = result.codeDelta
                     val sign = if (d.delta >= 0) "+" else ""
@@ -183,6 +195,8 @@ object MarkdownReporter {
         }
         appendLine()
     }
+
+    private fun formatTokenCount(count: Int): String = "%,d".format(count)
 
     private fun formatPercent(value: Double): String = "${(value * 100).toInt()}%"
 
