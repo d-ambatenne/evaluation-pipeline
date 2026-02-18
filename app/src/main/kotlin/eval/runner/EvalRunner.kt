@@ -130,9 +130,14 @@ class EvalRunner(
 
                 for (task in tasks) {
                     logger.info("  Task: ${task.id} (${task.difficulty})")
-                    val result = executor.execute(task, provider)
-                    results.add(result)
-                    logger.info("  Result: ${result.finalOutcome} in ${result.attempts.size} attempt(s)")
+                    try {
+                        val result = executor.execute(task, provider)
+                        results.add(result)
+                        logger.info("  Result: ${result.finalOutcome} in ${result.attempts.size} attempt(s)")
+                    } catch (e: Exception) {
+                        logger.error("  Task ${task.id} crashed: ${e.message}")
+                        results.add(failedResult(task, provider, e))
+                    }
                     sandbox.resetToMain()
                 }
             } finally {
@@ -158,9 +163,14 @@ class EvalRunner(
 
                     for (task in tasks) {
                         logger.info("  [${provider.name}] Task: ${task.id}")
-                        val result = executor.execute(task, provider)
-                        modelResults.add(result)
-                        logger.info("  [${provider.name}] ${task.id}: ${result.finalOutcome}")
+                        try {
+                            val result = executor.execute(task, provider)
+                            modelResults.add(result)
+                            logger.info("  [${provider.name}] ${task.id}: ${result.finalOutcome}")
+                        } catch (e: Exception) {
+                            logger.error("  [${provider.name}] ${task.id} crashed: ${e.message}")
+                            modelResults.add(failedResult(task, provider, e))
+                        }
                         sandbox.resetToMain()
                     }
                     modelResults
@@ -170,5 +180,30 @@ class EvalRunner(
             }
         }
         deferreds.flatMap { it.await() }
+    }
+
+    private fun failedResult(task: TaskDefinition, provider: ModelProvider, error: Exception): EvalResult {
+        return EvalResult(
+            taskId = task.id,
+            model = provider.name,
+            timestamp = Instant.now().toString(),
+            attempts = listOf(
+                Attempt(
+                    attemptNumber = 1,
+                    generatedCode = emptyMap(),
+                    compileSuccess = false,
+                    compilerErrors = listOf("Pipeline error: ${error.message}"),
+                    testSuccess = false,
+                    durationMs = 0,
+                )
+            ),
+            finalOutcome = Outcome.FAILURE,
+            metrics = EvalMetrics(
+                firstTryCompile = false,
+                firstTryTestPass = false,
+                totalDurationMs = 0,
+                recoveredFromError = false,
+            ),
+        )
     }
 }

@@ -55,11 +55,29 @@ class TaskExecutor(
             }
 
             // Call the model
-            val generated: GeneratedCode = provider.generateCode(
-                prompt = prompt,
-                projectContext = context,
-                previousErrors = previousErrors,
-            )
+            val generated: GeneratedCode
+            try {
+                generated = provider.generateCode(
+                    prompt = prompt,
+                    projectContext = context,
+                    previousErrors = previousErrors,
+                )
+            } catch (e: Exception) {
+                logger.warn("API call failed on attempt $attemptNum: ${e.message}")
+                val attemptDuration = System.currentTimeMillis() - attemptStart
+                attempts.add(
+                    Attempt(
+                        attemptNumber = attemptNum,
+                        generatedCode = emptyMap(),
+                        compileSuccess = false,
+                        compilerErrors = listOf("API error: ${e.message}"),
+                        testSuccess = false,
+                        durationMs = attemptDuration,
+                    )
+                )
+                previousErrors = listOf("API error: ${e.message}")
+                continue
+            }
 
             // Reset sandbox and apply code
             sandbox.resetToMain()
