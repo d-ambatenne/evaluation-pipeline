@@ -93,22 +93,31 @@ private fun parseArgs(args: Array<String>): CliConfig {
 }
 
 private fun resolveProviders(modelFilter: Set<String>?): List<ModelProvider> {
-    val available = mutableListOf<ModelProvider>()
+    val hasAnthropicKey = System.getenv("ANTHROPIC_AUTH_TOKEN") != null || System.getenv("ANTHROPIC_API_KEY") != null
+    val hasOpenAIKey = System.getenv("OPENAI_AUTH_TOKEN") != null || System.getenv("OPENAI_API_KEY") != null
+    val hasGeminiKey = System.getenv("GEMINI_API_KEY") != null
 
-    // Only instantiate providers whose auth tokens are set
-    if (System.getenv("ANTHROPIC_AUTH_TOKEN") != null || System.getenv("ANTHROPIC_API_KEY") != null) {
-        available.add(ClaudeProvider())
-    }
-    if (System.getenv("OPENAI_AUTH_TOKEN") != null || System.getenv("OPENAI_API_KEY") != null) {
-        available.add(OpenAIProvider())
-    }
-    if (System.getenv("GEMINI_API_KEY") != null) {
-        available.add(GeminiProvider())
-    }
-
+    // When specific model IDs are given, create a provider per ID
     if (modelFilter != null) {
-        return available.filter { it.name in modelFilter }
+        return modelFilter.mapNotNull { modelId ->
+            when {
+                modelId.startsWith("claude-") && hasAnthropicKey -> ClaudeProvider(model = modelId)
+                modelId.startsWith("gpt-") && hasOpenAIKey -> OpenAIProvider(model = modelId)
+                modelId.startsWith("o1") && hasOpenAIKey -> OpenAIProvider(model = modelId)
+                modelId.startsWith("gemini-") && hasGeminiKey -> GeminiProvider(model = modelId)
+                else -> {
+                    System.err.println("Warning: skipping model '$modelId' (no matching provider or missing API key)")
+                    null
+                }
+            }
+        }
     }
+
+    // Default: one provider per available API key
+    val available = mutableListOf<ModelProvider>()
+    if (hasAnthropicKey) available.add(ClaudeProvider())
+    if (hasOpenAIKey) available.add(OpenAIProvider())
+    if (hasGeminiKey) available.add(GeminiProvider())
     return available
 }
 
