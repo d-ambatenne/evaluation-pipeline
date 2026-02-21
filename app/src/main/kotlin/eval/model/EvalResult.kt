@@ -22,6 +22,7 @@ data class EvalResult(
     val metrics: EvalMetrics,
     val failureCategory: FailureCategory? = null,
     val codeDelta: CodeDelta? = null,
+    val semanticComparison: SemanticComparison? = null,
 )
 
 @Serializable
@@ -74,4 +75,29 @@ data class CodeDelta(
     val generatedLoc: Int,
     val referenceLoc: Int,
     val delta: Int,
+)
+
+@Serializable
+data class SemanticComparison(
+    val structuralMetrics: StructuralMetrics,
+    val semanticJudgment: SemanticJudgment? = null,
+    val compositeSimilarity: Double,
+)
+
+@Serializable
+data class StructuralMetrics(
+    val tokenOverlap: Double,
+    val importAlignment: Double,
+    val publicApiMatch: Double,
+    val controlFlowSimilarity: Double,
+    val apiVersionAlignment: Double,
+)
+
+@Serializable
+data class SemanticJudgment(
+    val approachSimilarity: Int,
+    val behavioralEquivalence: Int,
+    val completeness: Int,
+    val divergenceExplanation: String,
+    val rawResponse: String,
 )

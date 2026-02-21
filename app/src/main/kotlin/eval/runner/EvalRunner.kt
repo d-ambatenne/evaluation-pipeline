@@ -7,6 +7,7 @@ import eval.reporting.ComparisonReport
 import eval.reporting.JsonReporter
 import eval.reporting.MarkdownReporter
 import eval.scoring.FailureCategorizer
+import eval.scoring.SemanticComparer
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
@@ -22,6 +23,7 @@ class EvalRunner(
     private val parallel: Boolean = false,
     private val dryRun: Boolean = false,
     private val outputDir: File? = null,
+    private val semanticComparer: SemanticComparer? = null,
 ) {
     private val logger = LoggerFactory.getLogger(EvalRunner::class.java)
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
@@ -126,7 +128,7 @@ class EvalRunner(
             try {
                 val gradleExecutor = GradleExecutor(sandbox.workDir)
                 val contextBuilder = ContextBuilder(sandbox.workDir)
-                val executor = TaskExecutor(sandbox, gradleExecutor, contextBuilder)
+                val executor = TaskExecutor(sandbox, gradleExecutor, contextBuilder, semanticComparer)
 
                 for (task in tasks) {
                     logger.info("  Task: ${task.id} (${task.difficulty})")
@@ -158,7 +160,7 @@ class EvalRunner(
                 try {
                     val gradleExecutor = GradleExecutor(sandbox.workDir)
                     val contextBuilder = ContextBuilder(sandbox.workDir)
-                    val executor = TaskExecutor(sandbox, gradleExecutor, contextBuilder)
+                    val executor = TaskExecutor(sandbox, gradleExecutor, contextBuilder, semanticComparer)
                     val modelResults = mutableListOf<EvalResult>()
 
                     for (task in tasks) {
