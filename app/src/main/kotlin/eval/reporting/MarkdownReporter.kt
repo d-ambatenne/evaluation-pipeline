@@ -144,6 +144,34 @@ object MarkdownReporter {
             appendLine()
         }
 
+        // Semantic similarity table (if any results have it)
+        val hasSemantic = run.results.any { it.semanticComparison != null }
+        if (hasSemantic) {
+            appendLine("## Semantic Similarity")
+            appendLine()
+            append("| Task |")
+            models.forEach { append(" $it |") }
+            appendLine()
+            append("|------|")
+            models.forEach { append("--------|") }
+            appendLine()
+
+            for (taskId in taskIds) {
+                append("| $taskId |")
+                for (model in models) {
+                    val result = resultMap["$taskId::$model"]
+                    val cell = result?.semanticComparison?.let {
+                        " %.2f ".format(it.compositeSimilarity)
+                    } ?: " - "
+                    append("$cell|")
+                }
+                appendLine()
+            }
+            appendLine()
+            appendLine("Score: 0.00 = completely different, 1.00 = identical to reference")
+            appendLine()
+        }
+
         // Per-task details
         appendLine("## Per-Task Details")
         appendLine()
@@ -175,6 +203,25 @@ object MarkdownReporter {
                     }
                     if (lastErrors.size > 5) {
                         appendLine("- ... and ${lastErrors.size - 5} more")
+                    }
+                }
+                val sc = result.semanticComparison
+                if (sc != null) {
+                    appendLine()
+                    val sm = sc.structuralMetrics
+                    appendLine("  Semantic: **%.2f** (token=%.2f, import=%.2f, api=%.2f, flow=%.2f, version=%.2f)".format(
+                        sc.compositeSimilarity,
+                        sm.tokenOverlap, sm.importAlignment, sm.publicApiMatch,
+                        sm.controlFlowSimilarity, sm.apiVersionAlignment,
+                    ))
+                    val sj = sc.semanticJudgment
+                    if (sj != null) {
+                        appendLine("  Judge: approach=%d, behavioral=%d, completeness=%d".format(
+                            sj.approachSimilarity, sj.behavioralEquivalence, sj.completeness,
+                        ))
+                        if (sj.divergenceExplanation.isNotBlank()) {
+                            appendLine("  Divergence: ${sj.divergenceExplanation.take(300)}")
+                        }
                     }
                 }
                 appendLine()

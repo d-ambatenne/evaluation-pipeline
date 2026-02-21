@@ -6,6 +6,7 @@ import eval.model.*
 import eval.provider.GeneratedCode
 import eval.provider.ModelProvider
 import eval.scoring.Scorer
+import eval.scoring.SemanticComparer
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.time.Instant
@@ -26,6 +27,7 @@ class TaskExecutor(
     private val sandbox: ProjectSandbox,
     private val gradleExecutor: GradleExecutor,
     private val contextBuilder: ContextBuilder,
+    private val semanticComparer: SemanticComparer? = null,
 ) {
     private val logger = LoggerFactory.getLogger(TaskExecutor::class.java)
     suspend fun execute(
@@ -155,6 +157,19 @@ class TaskExecutor(
         // Compute LOC delta against reference solution on the task branch
         val codeDelta = computeCodeDelta(task.branch, attempts.lastOrNull()?.generatedCode)
 
+        // Semantic comparison against reference (if enabled)
+        val semanticComparison = if (semanticComparer != null) {
+            val lastCode = attempts.lastOrNull()?.generatedCode
+            if (lastCode != null) {
+                try {
+                    semanticComparer.compare(lastCode, task.branch, sandbox)
+                } catch (e: Exception) {
+                    logger.warn("Semantic comparison failed for ${task.id}: ${e.message}")
+                    null
+                }
+            } else null
+        } else null
+
         return EvalResult(
             taskId = task.id,
             model = provider.name,
@@ -163,6 +178,7 @@ class TaskExecutor(
             finalOutcome = finalOutcome,
             metrics = metrics,
             codeDelta = codeDelta,
+            semanticComparison = semanticComparison,
         )
     }
 

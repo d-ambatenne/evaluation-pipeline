@@ -114,6 +114,55 @@ object ComparisonReport {
         }
         appendLine()
 
+        // Semantic divergence — tasks where models took different approaches
+        val hasSemantic = run.results.any { it.semanticComparison != null }
+        if (hasSemantic) {
+            appendLine("## Semantic Similarity")
+            appendLine()
+            append("| Task |")
+            models.forEach { append(" $it |") }
+            appendLine()
+            append("|------|")
+            models.forEach { append("--------|") }
+            appendLine()
+
+            for (taskId in taskIds) {
+                append("| $taskId |")
+                for (model in models) {
+                    val r = resultMap["$taskId::$model"]
+                    val score = r?.semanticComparison?.compositeSimilarity
+                    val cell = if (score != null) " %.2f ".format(score) else " - "
+                    append("$cell|")
+                }
+                appendLine()
+            }
+            appendLine()
+
+            // Highlight tasks where models took different approaches (approach < 3)
+            val approachDivergent = taskIds.filter { taskId ->
+                val scores = models.mapNotNull { model ->
+                    resultMap["$taskId::$model"]?.semanticComparison?.semanticJudgment?.approachSimilarity
+                }
+                scores.any { it < 3 }
+            }
+            if (approachDivergent.isNotEmpty()) {
+                appendLine("### Different Approaches Detected")
+                appendLine()
+                appendLine("Tasks where at least one model took a fundamentally different approach (score < 3):")
+                appendLine()
+                for (taskId in approachDivergent) {
+                    appendLine("- **$taskId**")
+                    for (model in models) {
+                        val sj = resultMap["$taskId::$model"]?.semanticComparison?.semanticJudgment
+                        if (sj != null && sj.approachSimilarity < 3) {
+                            appendLine("  - $model (approach=${sj.approachSimilarity}): ${sj.divergenceExplanation.take(200)}")
+                        }
+                    }
+                }
+                appendLine()
+            }
+        }
+
         // Head-to-head wins
         appendLine("## Head-to-Head")
         appendLine()

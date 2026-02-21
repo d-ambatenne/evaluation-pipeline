@@ -5,6 +5,8 @@ import eval.provider.GeminiProvider
 import eval.provider.ModelProvider
 import eval.provider.OpenAIProvider
 import eval.runner.EvalRunner
+import eval.scoring.SemanticComparer
+import eval.scoring.SemanticJudge
 import kotlinx.coroutines.runBlocking
 import java.io.File
 
@@ -19,6 +21,21 @@ fun main(args: Array<String>) {
 
     val outputDir = File(config.output)
 
+    // Build semantic comparer if requested
+    val semanticComparer = if (config.semantic || config.semanticJudge) {
+        val judge = if (config.semanticJudge) {
+            val judgeModel = config.judgeModel ?: "claude-opus-4-6"
+            val judgeProvider = resolveJudgeProvider(judgeModel)
+            if (judgeProvider == null) {
+                System.err.println("Warning: Cannot create judge provider for '$judgeModel' (missing API key). Running structural-only.")
+                null
+            } else {
+                SemanticJudge(judgeProvider)
+            }
+        } else null
+        SemanticComparer(semanticJudge = judge)
+    } else null
+
     val runner = EvalRunner(
         repoPath = File(config.repo),
         providers = providers,
@@ -27,6 +44,7 @@ fun main(args: Array<String>) {
         parallel = config.parallel,
         dryRun = config.dryRun,
         outputDir = outputDir,
+        semanticComparer = semanticComparer,
     )
 
     runBlocking { runner.run() }
@@ -42,6 +60,9 @@ private data class CliConfig(
     val output: String = "./results",
     val parallel: Boolean = false,
     val dryRun: Boolean = false,
+    val semantic: Boolean = false,
+    val semanticJudge: Boolean = false,
+    val judgeModel: String? = null,
 )
 
 private fun parseArgs(args: Array<String>): CliConfig {
@@ -52,6 +73,9 @@ private fun parseArgs(args: Array<String>): CliConfig {
     var output = "./results"
     var parallel = false
     var dryRun = false
+    var semantic = false
+    var semanticJudge = false
+    var judgeModel: String? = null
 
     val iter = args.iterator()
     while (iter.hasNext()) {
@@ -63,6 +87,9 @@ private fun parseArgs(args: Array<String>): CliConfig {
             "--output" -> output = iter.next()
             "--parallel" -> parallel = true
             "--dry-run" -> dryRun = true
+            "--semantic" -> semantic = true
+            "--semantic-judge" -> semanticJudge = true
+            "--judge-model" -> judgeModel = iter.next()
             "--help", "-h" -> {
                 printUsage()
                 System.exit(0)
@@ -89,6 +116,9 @@ private fun parseArgs(args: Array<String>): CliConfig {
         output = output,
         parallel = parallel,
         dryRun = dryRun,
+        semantic = semantic,
+        semanticJudge = semanticJudge,
+        judgeModel = judgeModel,
     )
 }
 
@@ -121,6 +151,20 @@ private fun resolveProviders(modelFilter: Set<String>?): List<ModelProvider> {
     return available
 }
 
+private fun resolveJudgeProvider(modelId: String): ModelProvider? {
+    val hasAnthropicKey = System.getenv("ANTHROPIC_AUTH_TOKEN") != null || System.getenv("ANTHROPIC_API_KEY") != null
+    val hasOpenAIKey = System.getenv("OPENAI_AUTH_TOKEN") != null || System.getenv("OPENAI_API_KEY") != null
+    val hasGeminiKey = System.getenv("GEMINI_API_KEY") != null
+
+    return when {
+        modelId.startsWith("claude-") && hasAnthropicKey -> ClaudeProvider(model = modelId)
+        modelId.startsWith("gpt-") && hasOpenAIKey -> OpenAIProvider(model = modelId)
+        modelId.startsWith("o1") && hasOpenAIKey -> OpenAIProvider(model = modelId)
+        modelId.startsWith("gemini-") && hasGeminiKey -> GeminiProvider(model = modelId)
+        else -> null
+    }
+}
+
 private fun printUsage() {
     println("""
         |Usage: kotlin-eval-pipeline [options]
@@ -131,6 +175,9 @@ private fun printUsage() {
         |  --output <dir>          Output directory for results (default: ./results)
         |  --parallel              Run models in parallel (default: sequential)
         |  --dry-run               Validate setup without calling models
+        |  --semantic              Enable structural semantic comparison (no LLM cost)
+        |  --semantic-judge        Enable LLM-as-judge semantic comparison (implies --semantic)
+        |  --judge-model <id>      Model for semantic judge (default: claude-opus-4-6)
         |  --help, -h              Show this help message
     """.trimMargin())
 }
